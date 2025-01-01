@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Horizontally center */
+            align-items: center;   /* Vertically center */
+            background-color: #f4f4f9; /* Optional background color */
+        }
+        canvas {
+            border: 1px solid black;
+        }
+
+        .fancy-button {
+            font-family: "Open Sans", sans-serif;
+            font-size: 16px;
+            letter-spacing: 2px;
+            text-decoration: none;
+            text-transform: uppercase;
+            color: #000;
+            cursor: pointer;
+            border: 3px solid;
+            padding: 0.25em 0.5em;
+            box-shadow: 1px 1px 0px 0px, 2px 2px 0px 0px, 3px 3px 0px 0px, 4px 4px 0px 0px, 5px 5px 0px 0px;
+            /* margin: 10px; */
+            position: relative;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .fancy-button:active {
+            box-shadow: 0px 0px 0px 0px;
+            margin: 1px 1px 0px 0px, 2px 2px 0px 0px, 3px 3px 0px 0px, 4px 4px 0px 0px, 5px 5px 0px 0px;
+            top: 5px;
+            left: 5px;
+        }
+
+        .fancy-text {
+            font-family: "Open Sans", sans-serif;
+            font-size: 16px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-align: center;
+            color: #000;
+            cursor: text; /* Change cursor for text inputs */
+            border: 3px solid;
+            padding: 0.25em 0.5em;
+            box-shadow: 1px 1px 0px 0px, 2px 2px 0px 0px, 3px 3px 0px 0px, 4px 4px 0px 0px, 5px 5px 0px 0px;
+            position: relative;
+            user-select: auto; /* Allow text selection */
+            -webkit-user-select: auto;
+            touch-action: manipulation;
+        }
+
+        .fancy-text:focus {
+            outline: none; /* Remove default focus outline */
+        }
+
+        .fancy-text::placeholder {
+            color: #888; /* Light gray placeholder text */
+            text-transform: none; /* Optional: Normal case for placeholder */
+        }
+
+        .inline-container {
+            display: flex; /* Set to flex for horizontal layout */
+            gap: 10px; /* Optional: spacing between elements */
+        }
+
+        @media (min-width: 768px) {
+            .button-54 {
+                padding: 0.25em 0.75em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1 style="font-family: Open Sans, sans-serif; font-size: 64px;">Tic-Tac-Toe</h1>
+    <input class="fancy-text" type = 'text' id = 'txtTurn' style="display: none; margin-bottom: 10px;" readonly="true">
+    <canvas id="ticTacToe" style="display: none;" width="600" height="600"></canvas>
+    <button class="fancy-button" style="margin-bottom: 10px;" id = 'btnCreate'>New Game</button>
+    <button class="fancy-button" id = 'btnRematch' style="display: none;">Rematch</button>
+    <button class="fancy-button" id = 'btnEndGame' style="display: none;">End Game</button>
+    <div class="inline-container">
+        <input class="fancy-text" type = 'text' id = 'txtGameId' placeholder="Enter Game ID">
+        <button class="fancy-button" id = 'btnJoin'>Join Game</button>
+    </div>
+
+    <script>
+        const btnCreate = document.getElementById("btnCreate");
+        const btnJoin = document.getElementById("btnJoin");
+        const btnRematch = document.getElementById("btnRematch");
+        const btnEndGame = document.getElementById("btnEndGame");
+        const txtGameId = document.getElementById("txtGameId");
+        const txtTurn = document.getElementById("txtTurn");
+        const canvas = document.getElementById("ticTacToe");
+        const ctx = canvas.getContext("2d");
+        const cellSize = canvas.width / 3;
+        
+        let ws = new WebSocket(WEBSOCKET_URL);
+        let clientId = null;
+        let gameId = null;
+        let gameState = null;
+
+        btnCreate.addEventListener("click", () => {
+            const payload = {
+                "method": "create",
+                "clientId": clientId
+            };
+
+            ws.send(JSON.stringify(payload));
+        });
+
+        btnJoin.addEventListener("click", () => {
+            const payload = {
+                "method": "join",
+                "clientId": clientId,
+                "gameId": gameId
+            };
+
+            ws.send(JSON.stringify(payload));
+        });
+
+        btnRematch.addEventListener("click", () => {
+            const payload = {
+                "method": "rematch",
+                "clientId": clientId,
+                "gameId": gameId
+            };
+
+            ws.send(JSON.stringify(payload));
+        });
+
+        btnEndGame.addEventListener("click", () => {
+            const payload = {
+                "method": "endGame",
+                "clientId": clientId,
+                "gameId": gameId
+            };
+
+            ws.send(JSON.stringify(payload));
+        });
+
+        txtGameId.addEventListener("input", () => {
+            gameId = txtGameId.value;
+        });
+
+        canvas.addEventListener("mousedown", (event) => {
+            const canvasBounds = canvas.getBoundingClientRect();
+
+            const mouseX = event.clientX - canvasBounds.left;
+            const mouseY = event.clientY - canvasBounds.top;
+            
+            let rowClicked;
+            let columnClicked;
+
+            if(mouseX < cellSize)
+            {
+                columnClicked = 0;
+            }
+            else if(mouseX > cellSize && mouseX < cellSize * 2)
+            {
+                columnClicked = 1;
+            }
+            else
+            {
+                columnClicked = 2;
+            }
+
+            if(mouseY < cellSize)
+            {
+                rowClicked = 0;
+            }
+            else if(mouseY > cellSize && mouseY < cellSize * 2)
+            {
+                rowClicked = 1;
+            }
+            else
+            {
+                rowClicked = 2;
+            }
+            
+            const payload = {
+                "clientId": clientId,
+                "gameId": gameId,
+                "method": "play",
+                "rowClicked": rowClicked,
+                "columnClicked": columnClicked,
+            };
+
+            ws.send(JSON.stringify(payload));
+        });
+
+        ws.onmessage = (message) => {
+            const response = JSON.parse(message.data);
+
+            if(response.method === "connect")
+            {
+                clientId = response.clientId;
+                console.log("Client Id: " + clientId);
+                return;
+            }
+
+            if(response.method === "create")
+            {
+                gameId = response.gameState.id;
+                console.log("Game Id: " + gameId);
+                txtGameId.value = gameId;
+                return;
+            }
+
+            if(response.method === "join")
+            {
+                let errorFound = response.errorFound;
+
+                if(errorFound)
+                {
+                    window.alert(response.errorMsg);
+                    return;       
+                }
+                
+                btnJoin.style.display = "none";
+                btnCreate.style.display = "none";
+                
+                canvas.style.display = "block"
+                btnEndGame.style.display = "block";
+                txtTurn.style.display = "block"
+                txtGameId.readOnly = true;
+
+                console.log(response.gameState);
+
+                resetGrid();
+                gameState = response.gameState;
+                drawGrid();
+                return;
+            }
+
+            if(response.method === "rematch")
+            {
+                let errorFound = response.errorFound;
+
+                if(errorFound)
+                {
+                    window.alert(response.errorMsg);
+                    return;       
+                }
+
+                const beginRematch = response.beginRematch;
+                const idOfClientRequestingRematch = response.clientId;
+
+                if(beginRematch)
+                {
+                    btnRematch.style.display = "none"; 
+                    
+                    resetGrid();
+                    gameState = response.gameState;
+                    drawGrid();
+                }
+                else if(idOfClientRequestingRematch != clientId)
+                {
+                    alert("Opponent requested a rematch!");
+                }
+
+                return;
+            }
+
+            if(response.method === "play")
+            {
+                let errorFound = response.errorFound;
+
+                if(errorFound)
+                {
+                    window.alert(response.errorMsg);
+                    return;       
+                }
+                
+                gameState = response.gameState;
+                drawGrid();
+                return;
+            }
+
+            if(response.method === "update")
+            {
+                gameState = response.gameState;
+                drawGrid();
+                
+                if(gameState.gameWinner !== undefined && gameState.gameWinner !== null)
+                {
+                    txtTurn.value = gameState.gameWinner === clientId ? "You Won!" : "You Lost!";
+                    btnRematch.style.display = "block";
+                }
+                else if(gameState.gameWinner === null && gameState.hasEnded)
+                {
+                    txtTurn.value = "Draw!";
+                    btnRematch.style.display = "block";
+                }
+                else
+                {
+                    txtTurn.value = gameState.currentClientTurn == clientId ? "Your Turn" : "Opponent's Turn";
+                }
+
+                return;
+            }
+
+            if(response.method === "opponentDisconnected")
+            {
+                alert("Game ended because opponent disconnected!");
+
+                canvas.style.display = "none";
+                txtTurn.style.display = "none";
+                btnEndGame.style.display = "none";
+
+                btnCreate.style.display = "block";
+                btnJoin.style.display = "block";
+                txtGameId.readOnly = false;
+                txtGameId.value = "";
+                txtTurn.value = "";
+
+                return;
+            }
+
+            if(response.method === "endGame")
+            {
+                const idOfClientRequestingEndGame = response.clientId;
+
+                if(idOfClientRequestingEndGame == clientId)
+                {
+                    alert("Game ended!");
+                }
+                else
+                {
+                    alert("Opponent ended game!");
+                }
+
+                canvas.style.display = "none";
+                txtTurn.style.display = "none";
+                btnEndGame.style.display = "none";
+                btnRematch.style.display = "none";
+
+                btnCreate.style.display = "block";
+                btnJoin.style.display = "block";
+                
+                txtGameId.readOnly = false;
+                txtGameId.value = "";
+                txtTurn.value = "";
+
+                return;
+            }
+        };
+
+        function drawGrid() 
+        {
+            // Draw gird lines
+            ctx.beginPath();
+            for (let i = 1; i < 3; i++) {
+                const offset = i * cellSize;
+                // Vertical lines
+                ctx.moveTo(offset, 0);
+                ctx.lineTo(offset, canvas.height);
+                // Horizontal lines
+                ctx.moveTo(0, offset);
+                ctx.lineTo(canvas.width, offset);
+            }
+            ctx.stroke();
+            
+            // Draw cells
+            if(gameState != null)
+            {
+                for(let i = 0; i < gameState.board.length; i++)
+                {
+                    for(let j = 0; j < gameState.board.length; j++)
+                    {
+                        ctx.fillStyle = "black";
+                        ctx.font = "100px Arial";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(gameState.board[i][j], cellSize / 2 + cellSize * j, cellSize / 2 + cellSize * i);
+                    }
+                }
+            }
+        }
+
+        function resetGrid()
+        {
+            ctx.clearRect(0, 0 , canvas.width, canvas.height);
+        }
+    </script>
+</body>
+</html>
